@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col">
+
+    <header class="bg-blue-600 text-white p-4 shadow-md flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center space-x-4">
+            <h1 class="text-xl font-bold">AI Chat Interface</h1>
+            <div id="session-info" class="text-xs bg-blue-700 px-2 py-1 rounded">Сесія: Не вибрано</div>
+        </div>
+        
+        <div class="flex space-x-2">
+            <button onclick="createNewSession()" class="bg-white text-blue-600 px-3 py-2 rounded-lg font-semibold hover:bg-blue-50 transition text-sm">
+                + Нова
+            </button>
+            
+            <button onclick="resetChat()" class="bg-yellow-400 text-yellow-900 px-3 py-2 rounded-lg font-semibold hover:bg-yellow-300 transition text-sm">
+                ↻ Очистити
+            </button>
+            
+            <button onclick="deleteSession()" class="bg-red-500 text-white px-3 py-2 rounded-lg font-semibold hover:bg-red-600 transition text-sm">
+                🗑 Видалити
+            </button>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <main class="flex-1 flex flex-col p-4">
+            <div id="chat-window" class="flex-1 overflow-y-auto bg-white rounded-xl shadow-inner p-4 space-y-4 mb-4">
+                <p class="text-gray-400 text-center mt-10">Створіть сесію або введіть повідомлення, щоб почати</p>
+            </div>
+
+            <div class="flex space-x-2">
+                <input type="text" id="user-input" placeholder="Напишіть щось..." 
+                    class="flex-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="sendMessage()" id="send-btn"
+                    class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    Надіслати
+                </button>
+            </div>
+            <div id="cost-display" class="mt-2 text-right text-sm text-gray-500 font-medium">Загальна вартість: $0.00</div>
+        </main>
+    </div>
+
+    <script>
+        let currentSessionUuid = null;
+        const API_BASE = "http://127.0.0.1:8000";
+        
+        window.onload = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionFromUrl = urlParams.get('session');
+            
+            if (sessionFromUrl) {
+                currentSessionUuid = sessionFromUrl;
+                document.getElementById('session-info').innerText = `ID: ${currentSessionUuid}`;
+                loadHistory();
+            }
+        };
+
+        // 1. Створення нової сесії
+        async function createNewSession() {
+            try {
+                const response = await fetch(`${API_BASE}/sessions`, { method: 'POST' });
+                const data = await response.json();
+                currentSessionUuid = data.session_uuid;
+                document.getElementById('session-info').innerText = `ID: ${currentSessionUuid}`;
+                document.getElementById('chat-window').innerHTML = '';
+                updateCost(0);
+                // Оновлюємо URL без перезавантаження
+                window.history.pushState({}, '', `?session=${currentSessionUuid}`);
+            } catch (error) {
+                console.error("Помилка створення сесії:", error);
+            }
+        }
+
+        // 2. Відправка повідомлення
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const btn = document.getElementById('send-btn');
+            const text = input.value.trim();
+
+            if (!text || !currentSessionUuid) {
+                alert("Спочатку створіть сесію!");
+                return;
+            }
+
+            appendMessage('user', text);
+            input.value = '';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/sessions/${currentSessionUuid}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                
+                const data = await response.json();
+                appendMessage('assistant', data.content);
+                loadHistory(); 
+            } catch (error) {
+                appendMessage('system', "Помилка зв'язку з сервером.");
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // 3. Завантаження історії
+        async function loadHistory() {
+            if (!currentSessionUuid) return;
+            try {
+                const response = await fetch(`${API_BASE}/sessions/${currentSessionUuid}/history`);
+                if (!response.ok) throw new Error("Сесію не знайдено");
+                const data = await response.json();
+                updateCost(data.total_cost);
+                
+                const chatWindow = document.getElementById('chat-window');
+                chatWindow.innerHTML = '';
+                if (data.messages.length === 0) {
+                    chatWindow.innerHTML = '<p class="text-gray-400 text-center mt-10">Історія порожня</p>';
+                }
+                data.messages.forEach(msg => appendMessage(msg.role, msg.content));
+            } catch (error) {
+                console.error("Помилка завантаження історії:", error);
+                document.getElementById('session-info').innerText = "Сесія недійсна";
+            }
+        }
+
+        // 4. Скидання чату (Reset)
+        async function resetChat() {
+            if (!currentSessionUuid) return alert("Виберіть сесію");
+            if (!confirm("Очистити історію повідомлень цієї сесії?")) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/sessions/${currentSessionUuid}/reset`, { method: 'POST' });
+                if (response.ok) {
+                    document.getElementById('chat-window').innerHTML = '<p class="text-gray-400 text-center mt-10">Історію очищено.</p>';
+                    updateCost(0);
+                }
+            } catch (error) {
+                console.error("Помилка при скиданні:", error);
+            }
+        }
+
+        // 5. Видалення сесії (Delete)
+        async function deleteSession() {
+            if (!currentSessionUuid) return;
+            if (!confirm("Видалити сесію та всі дані назавжди?")) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/sessions/${currentSessionUuid}`, { method: 'DELETE' });
+                if (response.status === 204 || response.ok) {
+                    currentSessionUuid = null;
+                    document.getElementById('session-info').innerText = "Сесія: Видалена";
+                    document.getElementById('chat-window').innerHTML = '<p class="text-gray-400 text-center mt-10">Сесію видалено.</p>';
+                    updateCost(0);
+                    window.history.pushState({}, '', window.location.pathname);
+                }
+            } catch (error) {
+                console.error("Помилка при видаленні:", error);
+            }
+        }
+
+        function appendMessage(role, text) {
+            const chatWindow = document.getElementById('chat-window');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `p-3 rounded-lg max-w-[80%] ${
+                role === 'user' ? 'bg-blue-100 ml-auto text-blue-900' : 'bg-gray-200 text-gray-800'
+            }`;
+            msgDiv.innerHTML = `<strong>${role === 'user' ? 'Ви' : 'AI'}:</strong> <p>${text}</p>`;
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function updateCost(cost) {
+            document.getElementById('cost-display').innerText = `Загальна вартість: $${cost.toFixed(6)}`;
+        }
+    </script>
+</body>
+</html>
