@@ -4,7 +4,7 @@ class Settings(BaseSettings):
     AI_API_KEY: str
     AI_MODEL_NAME: str
     AI_BASE_URL : str
-    DATABASE_URL: str = "sqlite:///./chat_history.db"
+    DATABASE_URL: str
     
     # Ціни для розрахунку
     PRICE_INPUT_1M: float = 0.25
