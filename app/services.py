@@ -8,6 +8,9 @@ client = AsyncOpenAI(
     api_key=settings.AI_API_KEY
 )
 
+price_in_1m = settings.PRICE_INPUT_1M
+price_out_1m = settings.PRICE_OUTPUT_1M
+
 async def get_ai_response(message_text: str, history: list):
     """
     history: список об'єктів повідомлень з БД
@@ -25,10 +28,8 @@ async def get_ai_response(message_text: str, history: list):
         usage = response.usage
         content = response.choices[0].message.content
         
-        # Оскільки Groq безкоштовний, для ТЗ рахуємо за тарифами GPT-4o-mini:
-        # $0.15 за 1M вхідних, $0.60 за 1M вихідних токенів
-        cost = (usage.prompt_tokens * (0.15 / 1_000_000)) + \
-               (usage.completion_tokens * (0.60 / 1_000_000))
+        cost = (usage.prompt_tokens * (price_in_1m / 1_000_000)) + \
+               (usage.completion_tokens * (price_out_1m / 1_000_000))
         
         return {
             "content": content,
