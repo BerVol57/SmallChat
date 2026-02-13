@@ -30,6 +30,11 @@
     </header>
 
     <div class="flex flex-1 overflow-hidden">
+        <aside class="w-64 bg-gray-800 text-white flex flex-col p-4 shadow-xl">
+            <h2 class="text-lg font-semibold mb-4 border-b border-gray-700 pb-2 text-blue-400">Минулі чати</h2>
+            <div id="sessions-list" class="flex-1 overflow-y-auto space-y-2">
+                </div>
+        </aside>
         <main class="flex-1 flex flex-col p-4">
             <div id="chat-window" class="flex-1 overflow-y-auto bg-white rounded-xl shadow-inner p-4 space-y-4 mb-4">
                 <p class="text-gray-400 text-center mt-10">Створіть сесію або введіть повідомлення, щоб почати</p>
@@ -51,28 +56,76 @@
         let currentSessionUuid = null;
         const API_BASE = "http://127.0.0.1:8000";
         
-        window.onload = () => {
+        window.onload = async () => {
             const urlParams = new URLSearchParams(window.location.search);
             const sessionFromUrl = urlParams.get('session');
             
+            // Спочатку завжди завантажуємо список усіх доступних сесій
+            await loadAllSessions();
+            
+            // Якщо в URL є ID сесії — активуємо її
             if (sessionFromUrl) {
-                currentSessionUuid = sessionFromUrl;
-                document.getElementById('session-info').innerText = `ID: ${currentSessionUuid}`;
-                loadHistory();
+                selectSession(sessionFromUrl);
             }
         };
+
+        async function loadAllSessions() {
+            try {
+                const response = await fetch(`${API_BASE}/sessions`);
+                const sessions = await response.json();
+                const listContainer = document.getElementById('sessions-list');
+                listContainer.innerHTML = ''; 
+
+                if (sessions.length === 0) {
+                    listContainer.innerHTML = '<p class="text-gray-500 text-xs text-center">Немає активних чатів</p>';
+                    return;
+                }
+
+                sessions.forEach(s => {
+                    const btn = document.createElement('button');
+                    const isActive = currentSessionUuid === s.session_uuid;
+                    
+                    // Стилізація: активний чат підсвічуємо синім
+                    btn.className = `w-full text-left p-3 rounded-lg text-sm transition duration-200 mb-2 flex flex-col ${
+                        isActive ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-gray-700 text-gray-300'
+                    }`;
+                    
+                    // Відображаємо короткий ID та ціну сесії
+                    btn.innerHTML = `
+                        <span class="font-medium">Чат: ${s.session_uuid.substring(0, 8)}...</span>
+                        <span class="text-[10px] opacity-70">Вартість: $${s.total_cost.toFixed(4)}</span>
+                    `;
+                    
+                    btn.onclick = () => selectSession(s.session_uuid);
+                    listContainer.appendChild(btn);
+                });
+            } catch (error) {
+                console.error("Помилка завантаження списку сесій:", error);
+            }
+        }
+
+        async function selectSession(uuid) {
+            currentSessionUuid = uuid;
+            
+            // Оновлюємо заголовок та URL
+            document.getElementById('session-info').innerText = `ID: ${uuid}`;
+            window.history.pushState({}, '', `?session=${uuid}`);
+            
+            // Очищуємо вікно та завантажуємо історію
+            const chatWindow = document.getElementById('chat-window');
+            chatWindow.innerHTML = '<p class="text-gray-400 text-center mt-10">Завантаження історії...</p>';
+            
+            await loadHistory();
+            await loadAllSessions(); // Оновлюємо підсвітку в Sidebar
+        }
 
         // 1. Створення нової сесії
         async function createNewSession() {
             try {
                 const response = await fetch(`${API_BASE}/sessions`, { method: 'POST' });
                 const data = await response.json();
-                currentSessionUuid = data.session_uuid;
-                document.getElementById('session-info').innerText = `ID: ${currentSessionUuid}`;
-                document.getElementById('chat-window').innerHTML = '';
-                updateCost(0);
-                // Оновлюємо URL без перезавантаження
-                window.history.pushState({}, '', `?session=${currentSessionUuid}`);
+            // Відразу перемикаємось на новостворену сесію
+                await selectSession(data.session_uuid);
             } catch (error) {
                 console.error("Помилка створення сесії:", error);
             }
@@ -102,7 +155,8 @@
                 
                 const data = await response.json();
                 appendMessage('assistant', data.content);
-                loadHistory(); 
+                await loadHistory();
+                await loadAllSessions(); 
             } catch (error) {
                 appendMessage('system', "Помилка зв'язку з сервером.");
             } finally {
@@ -160,6 +214,7 @@
                     document.getElementById('chat-window').innerHTML = '<p class="text-gray-400 text-center mt-10">Сесію видалено.</p>';
                     updateCost(0);
                     window.history.pushState({}, '', window.location.pathname);
+                    location.reload();
                 }
             } catch (error) {
                 console.error("Помилка при видаленні:", error);
