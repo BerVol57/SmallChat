@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
-from app import models, schemas, services
+from app.services import ai_service
 from app.core.database import get_db
 import uuid
+
+from app.models import chat as models
+from app.schemas import chat as schemas
 
 router = APIRouter()
 
@@ -34,7 +37,7 @@ async def chat(session_uuid: str, request: schemas.ChatRequest, db: Session = De
     history = db.query(models.Message).filter(models.Message.session_id == session.id).all()
 
     # Запит до AI
-    ai_data = await services.get_ai_response(request.message, history)
+    ai_data = await ai_service.get_ai_response(request.message, history)
 
     # Зберігаємо повідомлення користувача
     user_msg = models.Message(
