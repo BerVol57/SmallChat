@@ -2,10 +2,10 @@ from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from app.core.database import get_db, engine
-from app.api.endpoints import router as api_router
-from app import models
+from app.api.v1.endpoints.chat import router as api_router
+from app.models import chat
 
-models.Base.metadata.create_all(bind=engine)
+chat.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
