@@ -109,3 +109,8 @@ def get_history(session_uuid: str, db: Session = Depends(get_db)):
 def get_all_sessions(db: Session = Depends(get_db)):
     # Повертає абсолютно всі сесії, які є в БД
     return db.query(models.ChatSession).all()
+
+@router.get("/sessions", response_model=list[schemas.SessionResponse])
+def get_all_sessions(db: Session = Depends(get_db)):
+    # Повертаємо всі сесії, відсортовані від нових до старих
+    return db.query(models.ChatSession).order_by(models.ChatSession.id.desc()).all()
