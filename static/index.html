@@ -54,7 +54,7 @@
 
     <script>
         let currentSessionUuid = null;
-        const API_BASE = "http://127.0.0.1:8000";
+        const API_BASE = window.location.origin + "/api/v1/chat";
         
         window.onload = async () => {
             const urlParams = new URLSearchParams(window.location.search);
@@ -71,7 +71,7 @@
 
         async function loadAllSessions() {
             try {
-                const response = await fetch(`${API_BASE}/sessions`);
+                const response = await fetch(`${API_BASE}/list_sessions`);
                 const sessions = await response.json();
                 const listContainer = document.getElementById('sessions-list');
                 listContainer.innerHTML = ''; 
@@ -138,7 +138,7 @@
             const text = input.value.trim();
 
             if (!text || !currentSessionUuid) {
-                alert("Спочатку створіть сесію!");
+                alert("Спочатку створіть/оберіть сесію!");
                 return;
             }
 
@@ -177,8 +177,9 @@
                 chatWindow.innerHTML = '';
                 if (data.messages.length === 0) {
                     chatWindow.innerHTML = '<p class="text-gray-400 text-center mt-10">Історія порожня</p>';
+                } else {
+                    data.messages.forEach(msg => appendMessage(msg.role, msg.content));
                 }
-                data.messages.forEach(msg => appendMessage(msg.role, msg.content));
             } catch (error) {
                 console.error("Помилка завантаження історії:", error);
                 document.getElementById('session-info').innerText = "Сесія недійсна";

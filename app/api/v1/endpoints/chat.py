@@ -12,11 +12,7 @@ router = APIRouter()
 
 @router.get("/new_session")
 async def quick_start(db: Session = Depends(get_db)):
-    new_uuid = str(uuid.uuid4())
-    db_session = models.ChatSession(session_uuid=new_uuid, total_cost=0.0)
-    db.add(db_session)
-    db.commit()
-    return RedirectResponse(url=f"/static/index.html?session={new_uuid}")
+    return RedirectResponse(url=f"/static/index.html?session")
 
 @router.post("/sessions", response_model=schemas.SessionResponse)
 def create_session(db: Session = Depends(get_db)):
@@ -114,6 +110,6 @@ def get_all_sessions(db: Session = Depends(get_db)):
     return db.query(models.ChatSession).all()
 
 @router.get("/sessions", response_model=list[schemas.SessionResponse])
-def get_all_sessions(db: Session = Depends(get_db)):
+def get_list_sessions(db: Session = Depends(get_db)):
     # Повертаємо всі сесії, відсортовані від нових до старих
     return db.query(models.ChatSession).order_by(models.ChatSession.id.desc()).all()
