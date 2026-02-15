@@ -71,7 +71,7 @@
 
         async function loadAllSessions() {
             try {
-                const response = await fetch(`${API_BASE}/list_sessions`);
+                const response = await fetch(`${API_BASE}/sessions`);
                 const sessions = await response.json();
                 const listContainer = document.getElementById('sessions-list');
                 listContainer.innerHTML = ''; 
